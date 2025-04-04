@@ -25,24 +25,27 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 public class ExamplePDFAOneb {
+
+    public static final String PDF_BOX = "PDFBox";
+    public static final String S_RGB_IEC_61966_2_1 = "sRGB IEC61966-2.1";
 
     /**
      * Konvertiert verschiedene Dateiformate (JPG, PNG, PDF) zu einem PDF/A-1b Dokument
      *
      * @param inputFiles Liste der Eingabedateien (JPG, PNG, PDF)
      * @param outputFile Ausgabedatei (PDF/A-1b)
-     * @param colorProfilePath Pfad zum ICC-Profil (z.B. sRGB-Farbprofil)
      * @throws IOException Bei Fehlern während der Konvertierung
      */
-    public void convertToPDFA1b(List<File> inputFiles, File outputFile, String colorProfilePath) throws IOException {
+    public void convertToPDFA1b(List<File> inputFiles, File outputFile) throws IOException {
         // Schritt 1: Alle Dateien zu einem PDF zusammenführen
         PDDocument mergedDocument = mergeFilesToPdf(inputFiles);
 
         // Schritt 2: Das zusammengeführte PDF zu PDF/A-1b konvertieren
-        convertToPDFA(mergedDocument, outputFile, colorProfilePath);
+        convertToPDFA(mergedDocument, outputFile);
     }
 
     /**
@@ -108,14 +111,13 @@ public class ExamplePDFAOneb {
      *
      * @param document Das zu konvertierende PDF-Dokument
      * @param outputFile Die Ausgabedatei
-     * @param colorProfilePath Pfad zum ICC-Profil
      * @throws IOException Bei Fehlern während der Konvertierung
      */
-    private void convertToPDFA(PDDocument document, File outputFile, String colorProfilePath) throws IOException {
+    private void convertToPDFA(PDDocument document, File outputFile) throws IOException {
         // Dokument-Informationen setzen
         document.getDocumentInformation().setTitle("PDF/A-1b Dokument");
-        document.getDocumentInformation().setCreator("PDFBox");
-        document.getDocumentInformation().setProducer("PDFBox");
+        document.getDocumentInformation().setCreator(PDF_BOX);
+        document.getDocumentInformation().setProducer(PDF_BOX);
 
         // Füge Metadaten im XMP-Format mit XMPBox hinzu
         try {
@@ -155,12 +157,12 @@ public class ExamplePDFAOneb {
 
         // XMP Basic Schema hinzufügen
         XMPBasicSchema xmpBasicSchema = xmpMetadata.createAndAddXMPBasicSchema();
-        xmpBasicSchema.setCreatorTool("PDFBox");
+        xmpBasicSchema.setCreatorTool(PDF_BOX);
         xmpBasicSchema.setCreateDate(Calendar.getInstance());
 
         // Adobe PDF Schema hinzufügen
         AdobePDFSchema adobePDFSchema = xmpMetadata.createAndAddAdobePDFSchema();
-        adobePDFSchema.setProducer("PDFBox");
+        adobePDFSchema.setProducer(PDF_BOX);
 
         // XMP-Metadaten in einen Stream serialisieren
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -184,12 +186,15 @@ public class ExamplePDFAOneb {
      * @throws IOException Bei Fehlern während des Hinzufügens des OutputIntents
      */
     private void addOutputIntent(PDDocument document) throws IOException {
+
+        ClassLoader classLoader = getClass().getClassLoader();
+        File file = new File(Objects.requireNonNull(classLoader.getResource("sRGB_v4_ICC_preference.icc")).getFile());
         // Lade das ICC-Profil
-        InputStream colorProfile = new FileInputStream("classpath:sRGB_v4_ICC_preference.icc");
+        InputStream colorProfile = new FileInputStream(file);
         PDOutputIntent outputIntent = new PDOutputIntent(document, colorProfile);
-        outputIntent.setInfo("sRGB IEC61966-2.1");
-        outputIntent.setOutputCondition("sRGB IEC61966-2.1");
-        outputIntent.setOutputConditionIdentifier("sRGB IEC61966-2.1");
+        outputIntent.setInfo(S_RGB_IEC_61966_2_1);
+        outputIntent.setOutputCondition(S_RGB_IEC_61966_2_1);
+        outputIntent.setOutputConditionIdentifier(S_RGB_IEC_61966_2_1);
         outputIntent.setRegistryName("http://www.color.org");
         document.getDocumentCatalog().addOutputIntent(outputIntent);
         colorProfile.close();
