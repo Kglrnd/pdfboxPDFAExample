@@ -2,10 +2,12 @@ package de.kugidev.pdf.pdfa;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.cos.COSBase;
+import org.apache.pdfbox.cos.COSDictionary;
+import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.graphics.color.PDOutputIntent;
 import org.apache.pdfbox.pdmodel.common.PDMetadata;
@@ -119,6 +121,8 @@ public class ExamplePDFAOneb {
         document.getDocumentInformation().setCreator(PDF_BOX);
         document.getDocumentInformation().setProducer(PDF_BOX);
 
+        fixProhibitedTransparencyGroups(document);
+
         // Füge Metadaten im XMP-Format mit XMPBox hinzu
         try {
             addXmpMetadata(document);
@@ -199,4 +203,67 @@ public class ExamplePDFAOneb {
         document.getDocumentCatalog().addOutputIntent(outputIntent);
         colorProfile.close();
     }
+
+    /**
+     * Entfernt verbotene Transparenzwerte aus Gruppenobjekten im PDF
+     *
+     * @param document Das zu bereinigende PDF-Dokument
+     * @throws IOException Bei Fehlern während der Bearbeitung
+     */
+    private void fixProhibitedTransparencyGroups(PDDocument document) throws IOException {
+        PDDocumentCatalog catalog = document.getDocumentCatalog();
+
+        for (PDPage page : catalog.getPages()) {
+            // Ressourcen der Seite abrufen
+            PDResources resources = page.getResources();
+            if (resources == null) continue;
+
+            // XObjects durchsuchen (können Gruppen enthalten)
+            Iterable<COSName> xObjectNames = resources.getXObjectNames();
+            if (xObjectNames != null) {
+                for (COSName name : xObjectNames) {
+                        fixFormXObject(resources.getXObject(name));
+
+                }
+            }
+        }
+    }
+
+    /**
+     * Korrigiert verbotene Transparenzeinstellungen in Form-XObjects
+     *
+     * @param pdxObject Das zu korrigierende PDXObject
+     * @throws IOException Bei Fehlern während der Bearbeitung
+     */
+    private void fixFormXObject(PDXObject pdxObject) throws IOException {
+        COSDictionary dict = pdxObject.getCOSObject();
+        COSBase groupObject = dict.getDictionaryObject(COSName.GROUP);
+
+        // Pattern Matching für instanceof
+        if (groupObject instanceof COSDictionary group) {
+            COSName sKey = group.getCOSName(COSName.S);
+
+            if (COSName.TRANSPARENCY.equals(sKey)) {
+                group.removeItem(COSName.S);
+            }
+        }
+
+        // Ressourcen über das COSDictionary direkt abrufen
+        COSBase resourcesDict = dict.getDictionaryObject(COSName.RESOURCES);
+
+        // Pattern Matching für instanceof
+        if (resourcesDict instanceof COSDictionary resourcesCosDictionary) {
+            PDResources resources = new PDResources(resourcesCosDictionary);
+            Iterable<COSName> xObjectNames = resources.getXObjectNames();
+            if (xObjectNames != null) {
+                for (COSName name : xObjectNames) {
+                    PDXObject xObject = resources.getXObject(name);
+                    if (xObject != null) {
+                        fixFormXObject(xObject);
+                    }
+                }
+            }
+        }
+    }
+
 }

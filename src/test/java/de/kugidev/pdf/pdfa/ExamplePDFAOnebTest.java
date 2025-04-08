@@ -22,7 +22,7 @@ class ExamplePDFAOnebTest {
 
      List<File> files = List.of(pdf, jpg);
 
-     File testpdfa = Files.newTemporaryFile();
+     File testpdfa = Files.newFile("test.pdf");
 
      examplePDFAOneb.convertToPDFA1b(files, testpdfa);
 
