@@ -8,9 +8,11 @@ import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.graphics.PDXObject;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.graphics.color.PDOutputIntent;
 import org.apache.pdfbox.pdmodel.common.PDMetadata;
+import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import org.apache.xmpbox.XMPMetadata;
 import org.apache.xmpbox.schema.PDFAIdentificationSchema;
 import org.apache.xmpbox.schema.XMPBasicSchema;
@@ -111,7 +113,7 @@ public class ExamplePDFAOneb {
     /**
      * Konvertiert ein PDF-Dokument zu einem PDF/A-1b-konformen Dokument
      *
-     * @param document Das zu konvertierende PDF-Dokument
+     * @param document   Das zu konvertierende PDF-Dokument
      * @param outputFile Die Ausgabedatei
      * @throws IOException Bei Fehlern während der Konvertierung
      */
@@ -121,6 +123,10 @@ public class ExamplePDFAOneb {
         document.getDocumentInformation().setCreator(PDF_BOX);
         document.getDocumentInformation().setProducer(PDF_BOX);
 
+        // Die neuen Korrekturfunktionen aufrufen
+        fixExtGStateTransparency(document);
+
+        // Bestehende fixProhibitedTransparencyGroups-Methode aufrufen
         fixProhibitedTransparencyGroups(document);
 
         // Füge Metadaten im XMP-Format mit XMPBox hinzu
@@ -143,7 +149,7 @@ public class ExamplePDFAOneb {
      * Verwendet XMPBox für die Erstellung der Metadaten
      *
      * @param document Das PDF-Dokument
-     * @throws IOException Bei Fehlern während des Hinzufügens der Metadaten
+     * @throws IOException            Bei Fehlern während des Hinzufügens der Metadaten
      * @throws BadFieldValueException Bei ungültigen Werten in den XMP-Metadaten
      */
     private void addXmpMetadata(PDDocument document) throws IOException, BadFieldValueException {
@@ -174,7 +180,7 @@ public class ExamplePDFAOneb {
         try {
             serializer.serialize(xmpMetadata, baos, true);
         } catch (TransformerException e) {
-           log.error("Fehler beim Serialisieren der XMP-Metadaten", e);
+            log.error("Fehler beim Serialisieren der XMP-Metadaten", e);
         }
 
         // Metadaten zum Dokument hinzufügen
@@ -222,7 +228,7 @@ public class ExamplePDFAOneb {
             Iterable<COSName> xObjectNames = resources.getXObjectNames();
             if (xObjectNames != null) {
                 for (COSName name : xObjectNames) {
-                        fixFormXObject(resources.getXObject(name));
+                    fixFormXObject(resources.getXObject(name));
 
                 }
             }
@@ -266,4 +272,91 @@ public class ExamplePDFAOneb {
         }
     }
 
+    /**
+     * Entfernt SMask-Einträge aus XObjects
+     *
+     * @param pdxObject Das zu korrigierende PDXObject
+     * @throws IOException Bei Fehlern während der Bearbeitung
+     */
+    private void removeSMaskFromXObject(PDXObject pdxObject) throws IOException {
+        if (pdxObject instanceof PDFormXObject form) {
+
+            // SMask entfernen
+            COSDictionary dict = form.getCOSObject();
+            if (dict.containsKey(COSName.SMASK)) {
+                dict.removeItem(COSName.SMASK);
+            }
+
+            // Ressourcen im Form XObject bearbeiten
+            PDResources resources = form.getResources();
+            if (resources != null) {
+                // Verschachtelte XObjects bearbeiten
+                for (COSName name : resources.getXObjectNames()) {
+                    PDXObject xObject = resources.getXObject(name);
+                    removeSMaskFromXObject(xObject);
+                }
+            }
+        }
+    }
+
+    /**
+     * Korrigiert ExtGState-Einträge, um CA/ca auf 1 zu setzen
+     *
+     * @param document Das zu korrigierende PDF-Dokument
+     * @throws IOException Bei Fehlern während der Bearbeitung
+     */
+    private void fixExtGStateTransparency(PDDocument document) throws IOException {
+        for (PDPage page : document.getPages()) {
+            PDResources resources = page.getResources();
+            if (resources != null) {
+                processExtGStateEntries(resources);
+                processXObjects(resources);
+            }
+        }
+    }
+
+    /**
+     * Verarbeitet ExtGState-Einträge in den Ressourcen und setzt Alpha-Konstanten zurück
+     *
+     * @param resources Die zu verarbeitenden Ressourcen
+     */
+    private void processExtGStateEntries(PDResources resources) {
+        for (COSName name : resources.getExtGStateNames()) {
+            PDExtendedGraphicsState extGState = resources.getExtGState(name);
+            if (extGState != null) {
+                resetAlphaConstants(extGState);
+            }
+        }
+    }
+
+    /**
+     * Verarbeitet XObjects in den Ressourcen und wendet Transparenz-Korrekturen an
+     *
+     * @param resources Die zu verarbeitenden Ressourcen
+     * @throws IOException Bei Fehlern während der Verarbeitung
+     */
+    private void processXObjects(PDResources resources) throws IOException {
+        for (COSName name : resources.getXObjectNames()) {
+            PDXObject xObject = resources.getXObject(name);
+            if (xObject instanceof PDFormXObject form) {
+                PDResources formResources = form.getResources();
+                if (formResources != null) {
+                    processExtGStateEntries(formResources);
+                }
+                removeSMaskFromXObject(form);
+            }
+        }
+    }
+
+    /**
+     * Setzt die Alpha-Konstanten für Strich- und Fülldeckkraft auf 1
+     *
+     * @param extGState Der zu bearbeitende ExtendedGraphicsState
+     */
+    private void resetAlphaConstants(PDExtendedGraphicsState extGState) {
+        // CA (Strichdeckkraft) auf 1 setzen
+        extGState.setStrokingAlphaConstant(1.0f);
+        // ca (Fülldeckkraft) auf 1 setzen
+        extGState.setNonStrokingAlphaConstant(1.0f);
+    }
 }

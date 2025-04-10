@@ -32,10 +32,10 @@
             <version>${pdfbox.version}</version>
         </dependency>
 
-        <!-- Apache Preflight -->
+        <!-- https://mvnrepository.com/artifact/org.apache.pdfbox/fontbox -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
-            <artifactId>preflight</artifactId>
+            <artifactId>fontbox</artifactId>
             <version>${pdfbox.version}</version>
         </dependency>
 
