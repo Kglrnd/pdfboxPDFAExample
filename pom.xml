@@ -15,6 +15,8 @@
         <junit.jupiter.version>5.14.4</junit.jupiter.version>
         <!-- PDFBox Version -->
         <pdfbox.version>3.0.8</pdfbox.version>
+        <!-- veraPDF Version (genutzt unter MPL-2.0) -->
+        <verapdf.version>1.30.3</verapdf.version>
     </properties>
 
     <dependencies>
@@ -64,6 +66,14 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>${junit.jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- veraPDF: unabhängige PDF/A-Validierung, nur zum Testen (Lizenz: MPL-2.0) -->
+        <dependency>
+            <groupId>org.verapdf</groupId>
+            <artifactId>validation-model</artifactId>
+            <version>${verapdf.version}</version>
             <scope>test</scope>
         </dependency>
 
